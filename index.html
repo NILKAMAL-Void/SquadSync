@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0b10">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>SquadSync — squad status, live</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#0a0b10;
+    --surface:#14161d;
+    --surface-2:#1b1e28;
+    --border:rgba(255,255,255,.08);
+    --border-strong:rgba(255,255,255,.16);
+    --text:#eef0f6;
+    --text-dim:#8b8fa3;
+    --text-faint:#565a6b;
+    --cyan:#34e7d0;
+    --purple:#a875ff;
+    --green:#31e17e;
+    --amber:#ffb648;
+    --out:#8a6070;
+    --radius:14px;
+    --safe-t:env(safe-area-inset-top,0px);
+    --safe-b:env(safe-area-inset-bottom,0px);
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--void);
+    color:var(--text);
+    font-family:'Inter',system-ui,-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    padding-top:var(--safe-t);
+    padding-bottom:var(--safe-b);
+  }
+  h1,h2,.brand,.lobby-id,.status-btn,.copy-btn,button{
+    font-family:'Manrope',system-ui,sans-serif;
+  }
+  button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;}
+  input{font:inherit;color:inherit;}
+  :focus-visible{outline:2px solid var(--cyan);outline-offset:2px;border-radius:4px;}
+
+  /* ---------- Onboarding ---------- */
+  .onboarding{
+    position:fixed;inset:0;z-index:50;
+    display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(120% 100% at 50% -10%, #171b26 0%, var(--void) 60%);
+    padding:24px;
+  }
+  .onboarding-card{width:100%;max-width:380px;}
+  .onboarding-mark{
+    color:var(--cyan);font-weight:800;letter-spacing:.01em;margin:0 0 18px;font-size:15px;
+  }
+  .onboarding-card h1{
+    font-size:clamp(24px,6vw,30px);line-height:1.25;margin:0 0 8px;font-weight:700;
+  }
+  .onboarding-sub{color:var(--text-dim);font-size:14px;margin:0 0 26px;}
+  #nameForm{display:flex;flex-direction:column;gap:12px;}
+  #nameInput{
+    background:var(--surface);border:1px solid var(--border-strong);border-radius:10px;
+    padding:14px 16px;font-size:16px;color:var(--text);
+  }
+  #nameInput::placeholder{color:var(--text-faint);}
+  #nameForm button{
+    background:var(--cyan);color:#04211c;font-weight:700;font-size:15px;
+    padding:14px 16px;border-radius:10px;transition:transform .12s ease;
+  }
+  #nameForm button:active{transform:scale(.97);}
+
+  /* ---------- App shell ---------- */
+  .app{max-width:640px;margin:0 auto;padding:18px 18px 40px;}
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;padding:6px 2px 20px;
+  }
+  .brand{font-weight:800;font-size:18px;color:var(--text);}
+  .conn{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text-dim);}
+  .conn-dot{width:7px;height:7px;border-radius:50%;background:var(--text-faint);}
+  .conn[data-state="live"] .conn-dot{background:var(--cyan);box-shadow:0 0 0 3px rgba(52,231,208,.18);}
+  .conn[data-state="connecting"] .conn-dot{background:var(--amber);animation:pulse 1.1s ease-in-out infinite;}
+  .conn[data-state="offline"] .conn-dot{background:var(--out);}
+  .retry-btn{margin-left:6px;color:var(--cyan);font-size:12.5px;text-decoration:underline;display:none;}
+  .conn[data-state="offline"] .retry-btn{display:inline;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+
+  .lobby-bar{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:14px 16px;margin-bottom:22px;
+  }
+  .lobby-code{display:flex;flex-direction:column;gap:3px;min-width:0;}
+  .lobby-label{font-size:11.5px;color:var(--text-faint);}
+  .lobby-id{
+    font-size:15px;font-weight:700;color:var(--purple);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .copy-btn{
+    flex-shrink:0;background:var(--surface-2);border:1px solid var(--border-strong);
+    color:var(--text);font-weight:600;font-size:13.5px;padding:10px 14px;border-radius:9px;
+    transition:border-color .15s ease, transform .12s ease;
+  }
+  .copy-btn:hover{border-color:var(--purple);}
+  .copy-btn:active{transform:scale(.96);}
+
+  .status-section{margin-bottom:28px;}
+  h2{font-size:13px;font-weight:700;color:var(--text-dim);margin:0 0 12px;}
+  .status-buttons{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+  .status-btn{
+    padding:16px 8px;border-radius:12px;border:1px solid var(--border-strong);
+    background:var(--surface);font-weight:700;font-size:14.5px;color:var(--text-dim);
+    display:flex;flex-direction:column;align-items:center;gap:7px;
+    transition:transform .12s ease, background .15s ease, color .15s ease, box-shadow .15s ease;
+  }
+  .status-btn::before{content:"";width:9px;height:9px;border-radius:50%;background:currentColor;}
+  .status-btn:active{transform:scale(.96);}
+  .status-btn.status-in{color:var(--green);}
+  .status-btn.status-late{color:var(--amber);}
+  .status-btn.status-out{color:var(--out);}
+  .status-btn[aria-pressed="true"]{color:#04120e;box-shadow:0 0 0 1px transparent;}
+  .status-btn.status-in[aria-pressed="true"]{background:var(--green);box-shadow:0 6px 20px -8px rgba(49,225,126,.6);}
+  .status-btn.status-late[aria-pressed="true"]{background:var(--amber);color:#2a1600;box-shadow:0 6px 20px -8px rgba(255,182,72,.55);}
+  .status-btn.status-out[aria-pressed="true"]{background:var(--out);color:#fff;box-shadow:0 6px 20px -8px rgba(138,96,112,.55);}
+
+  .late-options{
+    display:flex;gap:8px;margin-top:10px;overflow:hidden;
+    animation:expand .18s ease;
+  }
+  @keyframes expand{from{opacity:0;transform:translateY(-4px);}to{opacity:1;transform:translateY(0);}}
+  .late-options button{
+    flex:1;padding:10px 6px;border-radius:9px;border:1px solid var(--border-strong);
+    background:var(--surface);color:var(--text-dim);font-size:13px;font-weight:600;
+  }
+  .late-options button[aria-pressed="true"]{
+    background:rgba(255,182,72,.14);border-color:var(--amber);color:var(--amber);
+  }
+
+  .roster-section h2{display:flex;align-items:baseline;gap:6px;}
+  .roster{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;}
+  .roster-row{
+    display:grid;grid-template-columns:36px 1fr auto;align-items:center;gap:12px;
+    background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--status-color,var(--text-faint));
+    border-radius:10px;padding:12px 14px;
+  }
+  .roster-row[data-online="false"]{opacity:.55;}
+  .roster-avatar{
+    width:36px;height:36px;border-radius:50%;background:var(--surface-2);
+    display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;
+    color:var(--status-color,var(--text-dim));border:1px solid var(--border-strong);
+  }
+  .roster-mid{min-width:0;}
+  .roster-name{font-weight:600;font-size:14.5px;display:flex;align-items:center;gap:6px;}
+  .you-tag{font-size:10.5px;font-weight:700;color:var(--cyan);border:1px solid rgba(52,231,208,.35);padding:1px 6px;border-radius:20px;}
+  .roster-status{font-size:12.5px;color:var(--status-color,var(--text-dim));font-weight:600;margin-top:2px;}
+  .roster-time{font-size:11.5px;color:var(--text-faint);white-space:nowrap;text-align:right;}
+  .roster-empty{color:var(--text-dim);font-size:14px;padding:20px 4px;}
+
+  .toast{
+    position:fixed;left:50%;bottom:calc(24px + var(--safe-b));transform:translate(-50%,140%);
+    background:var(--surface-2);border:1px solid var(--border-strong);color:var(--text);
+    padding:12px 18px;border-radius:30px;font-size:13.5px;font-weight:600;
+    box-shadow:0 12px 30px -10px rgba(0,0,0,.6);
+    transition:transform .25s cubic-bezier(.2,.8,.2,1);z-index:60;white-space:nowrap;
+  }
+  .toast.show{transform:translate(-50%,0);}
+
+  @media (min-width:640px){
+    .app{padding-top:32px;}
+    .status-btn{padding:20px 8px;}
+  }
+  @media (min-width:860px){
+    .roster{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.001ms !important;transition-duration:.001ms !important;}
+  }
+</style>
+</head>
+<body>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<div id="onboarding" class="onboarding" hidden>
+  <div class="onboarding-card">
+    <p class="onboarding-mark">SquadSync</p>
+    <h1>What should your squad call you?</h1>
+    <p class="onboarding-sub">Saved on this device only — no account, no password.</p>
+    <form id="nameForm">
+      <input id="nameInput" type="text" maxlength="20" placeholder="Your name" autocomplete="off" required>
+      <button type="submit">Join squad</button>
+    </form>
+  </div>
+</div>
+
+<div id="app" class="app" hidden>
+  <header class="topbar">
+    <div class="brand">SquadSync</div>
+    <div class="conn" id="connIndicator" data-state="connecting">
+      <span class="conn-dot"></span>
+      <span id="connLabel">Connecting</span>
+      <button class="retry-btn" id="retryBtn" type="button">Retry</button>
+    </div>
+  </header>
+
+  <section class="lobby-bar">
+    <div class="lobby-code">
+      <span class="lobby-label">Lobby</span>
+      <span class="lobby-id" id="lobbyId">—</span>
+    </div>
+    <button class="copy-btn" id="copyBtn" type="button">Copy link</button>
+  </section>
+
+  <section class="status-section">
+    <h2>Your status</h2>
+    <div class="status-buttons" role="group" aria-label="Your status">
+      <button class="status-btn status-in" data-status="in" aria-pressed="false" type="button">In</button>
+      <button class="status-btn status-late" data-status="late" aria-pressed="false" type="button">Late</button>
+      <button class="status-btn status-out" data-status="out" aria-pressed="false" type="button">Out</button>
+    </div>
+    <div class="late-options" id="lateOptions" hidden role="group" aria-label="Running how late">
+      <button data-eta="15" type="button" aria-pressed="false">+15m</button>
+      <button data-eta="30" type="button" aria-pressed="false">+30m</button>
+      <button data-eta="" type="button" aria-pressed="false">Not sure</button>
+    </div>
+  </section>
+
+  <section class="roster-section">
+    <h2><span id="rosterHeading">Squad</span></h2>
+    <ul class="roster" id="rosterList"></ul>
+    <p class="roster-empty" id="rosterEmpty" hidden>Nobody's checked in yet. Be the first.</p>
+  </section>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  // ---------- Local identity ----------
+  const LS_NAME = 'squadsync-name';
+  const LS_ID = 'squadsync-client-id';
+
+  function uuid(){
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c=>{
+      const r = Math.random()*16|0;
+      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  }
+
+  function getClientId(){
+    let id = localStorage.getItem(LS_ID);
+    if (!id){ id = uuid(); localStorage.setItem(LS_ID, id); }
+    return id;
+  }
+
+  function getName(){ return localStorage.getItem(LS_NAME); }
+  function setName(n){ localStorage.setItem(LS_NAME, n); }
+
+  // ---------- Room id ----------
+  const ADJ = ['amber','neon','quiet','swift','lucky','solar','lunar','mint','violet','cobalt','rapid','sunset','bright','steel','golden'];
+  const NOUN = ['otter','comet','falcon','harbor','ember','ridge','delta','maple','canyon','echo','raven','tundra','grove','atlas','quartz'];
+
+  function generateRoomId(){
+    const a = ADJ[Math.floor(Math.random()*ADJ.length)];
+    const n = NOUN[Math.floor(Math.random()*NOUN.length)];
+    const hex = Math.random().toString(16).slice(2,5);
+    return `${a}-${n}-${hex}`;
+  }
+
+  function getRoomId(){
+    const hash = window.location.hash || '';
+    const m = hash.match(/^#lobby-(.+)$/);
+    if (m && m[1]) return m[1];
+    const id = generateRoomId();
+    window.location.hash = `lobby-${id}`;
+    return id;
+  }
+
+  const clientId = getClientId();
+  const roomId = getRoomId();
+
+  // ---------- DOM refs ----------
+  const onboarding = document.getElementById('onboarding');
+  const app = document.getElementById('app');
+  const nameForm = document.getElementById('nameForm');
+  const nameInput = document.getElementById('nameInput');
+  const lobbyIdEl = document.getElementById('lobbyId');
+  const copyBtn = document.getElementById('copyBtn');
+  const toastEl = document.getElementById('toast');
+  const connIndicator = document.getElementById('connIndicator');
+  const connLabel = document.getElementById('connLabel');
+  const retryBtn = document.getElementById('retryBtn');
+  const statusBtns = Array.from(document.querySelectorAll('.status-btn'));
+  const lateOptions = document.getElementById('lateOptions');
+  const lateOptionBtns = Array.from(lateOptions.querySelectorAll('button'));
+  const rosterList = document.getElementById('rosterList');
+  const rosterEmpty = document.getElementById('rosterEmpty');
+  const rosterHeading = document.getElementById('rosterHeading');
+
+  lobbyIdEl.textContent = roomId;
+
+  // ---------- Toast ----------
+  let toastTimer = null;
+  function showToast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=> toastEl.classList.remove('show'), 2200);
+  }
+
+  // ---------- Copy link ----------
+  copyBtn.addEventListener('click', async ()=>{
+    const url = window.location.href;
+    try{
+      await navigator.clipboard.writeText(url);
+    }catch(e){
+      const ta = document.createElement('textarea');
+      ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try{ document.execCommand('copy'); }catch(err){}
+      document.body.removeChild(ta);
+    }
+    showToast('Link copied — send it to your squad.');
+  });
+
+  // ---------- Onboarding ----------
+  function boot(){
+    const existingName = getName();
+    if (!existingName){
+      onboarding.hidden = false;
+      app.hidden = true;
+      nameInput.focus();
+    } else {
+      onboarding.hidden = true;
+      app.hidden = false;
+      connectSocket(existingName);
+    }
+  }
+
+  nameForm.addEventListener('submit', (e)=>{
+    e.preventDefault();
+    const val = nameInput.value.trim();
+    if (!val) return;
+    setName(val);
+    onboarding.hidden = true;
+    app.hidden = false;
+    connectSocket(val);
+  });
+
+  // ---------- Status state ----------
+  let myStatus = 'in';
+  let myEta = null;
+
+  function setActiveStatusButton(status){
+    statusBtns.forEach(b=> b.setAttribute('aria-pressed', String(b.dataset.status === status)));
+    lateOptions.hidden = status !== 'late';
+  }
+
+  function sendStatus(status, etaMinutes){
+    myStatus = status;
+    myEta = etaMinutes || null;
+    setActiveStatusButton(status);
+    if (socket && socket.connected){
+      socket.emit('status-update', { roomId, clientId, status, statusMeta: myEta ? { etaMinutes: myEta } : null });
+    }
+  }
+
+  statusBtns.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const status = btn.dataset.status;
+      if (status === 'late'){
+        setActiveStatusButton('late');
+        // default to "not sure" until a chip is picked
+        sendStatus('late', null);
+      } else {
+        sendStatus(status, null);
+      }
+    });
+  });
+
+  lateOptionBtns.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      lateOptionBtns.forEach(b=> b.setAttribute('aria-pressed', 'false'));
+      btn.setAttribute('aria-pressed', 'true');
+      const eta = btn.dataset.eta ? Number(btn.dataset.eta) : null;
+      sendStatus('late', eta);
+    });
+  });
+
+  // ---------- Connection UI ----------
+  function setConnState(state){
+    connIndicator.dataset.state = state;
+    connLabel.textContent = state === 'live' ? 'Live'
+      : state === 'connecting' ? 'Connecting'
+      : 'Offline';
+  }
+
+  retryBtn.addEventListener('click', ()=>{
+    setConnState('connecting');
+    if (socket) socket.connect();
+  });
+
+  // ---------- Roster rendering ----------
+  const STATUS_META = {
+    in:   { label: 'In',   color: 'var(--green)' },
+    late: { label: 'Late', color: 'var(--amber)' },
+    out:  { label: 'Out',  color: 'var(--out)' }
+  };
+
+  function relTime(ts){
+    const s = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+    if (s < 10) return 'now';
+    if (s < 60) return `${s}s ago`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    return `${Math.floor(h/24)}d ago`;
+  }
+
+  function statusLabel(member){
+    const meta = STATUS_META[member.status] || STATUS_META.in;
+    if (member.status === 'late' && member.statusMeta && member.statusMeta.etaMinutes){
+      return `${meta.label} · +${member.statusMeta.etaMinutes}m`;
+    }
+    return meta.label;
+  }
+
+  let lastRoster = [];
+
+  function renderRoster(roster){
+    lastRoster = roster;
+    rosterHeading.textContent = `Squad (${roster.length})`;
+    rosterEmpty.hidden = roster.length > 0;
+    rosterList.innerHTML = '';
+
+    // keep "you" pinned first, then most recently updated
+    const sorted = [...roster].sort((a,b)=>{
+      if (a.clientId === clientId) return -1;
+      if (b.clientId === clientId) return 1;
+      return b.updatedAt - a.updatedAt;
+    });
+
+    sorted.forEach(member=>{
+      const meta = STATUS_META[member.status] || STATUS_META.in;
+      const isYou = member.clientId === clientId;
+      const li = document.createElement('li');
+      li.className = 'roster-row';
+      li.style.setProperty('--status-color', meta.color);
+      li.dataset.online = String(member.online !== false);
+      li.dataset.client = member.clientId;
+
+      const initial = (member.name || '?').trim().charAt(0).toUpperCase() || '?';
+
+      li.innerHTML = `
+        <span class="roster-avatar">${initial}</span>
+        <span class="roster-mid">
+          <span class="roster-name">${escapeHtml(member.name || 'Someone')}${isYou ? '<span class="you-tag">You</span>' : ''}</span>
+          <span class="roster-status">${statusLabel(member)}</span>
+        </span>
+        <span class="roster-time" data-ts="${member.updatedAt}">${relTime(member.updatedAt)}</span>
+      `;
+      rosterList.appendChild(li);
+
+      if (isYou){
+        myStatus = member.status;
+        myEta = member.statusMeta ? member.statusMeta.etaMinutes : null;
+        setActiveStatusButton(myStatus);
+        if (myStatus === 'late'){
+          lateOptionBtns.forEach(b=>{
+            const eta = b.dataset.eta ? Number(b.dataset.eta) : null;
+            b.setAttribute('aria-pressed', String(eta === myEta));
+          });
+        }
+      }
+    });
+  }
+
+  function escapeHtml(str){
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  // refresh relative timestamps without waiting for a server push
+  setInterval(()=>{
+    document.querySelectorAll('.roster-time[data-ts]').forEach(el=>{
+      el.textContent = relTime(Number(el.dataset.ts));
+    });
+  }, 15000);
+
+  // ---------- Socket.io ----------
+  let socket = null;
+  let offlineTimer = null;
+
+  function connectSocket(name){
+    setConnState('connecting');
+    socket = io({
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 8000
+    });
+
+    socket.on('connect', ()=>{
+      clearTimeout(offlineTimer);
+      setConnState('live');
+      socket.emit('join', { roomId, clientId, name: getName() });
+    });
+
+    socket.on('roster', renderRoster);
+
+    socket.on('disconnect', ()=>{
+      setConnState('connecting');
+      offlineTimer = setTimeout(()=> setConnState('offline'), 6000);
+    });
+
+    socket.on('connect_error', ()=>{
+      setConnState('connecting');
+      offlineTimer = setTimeout(()=> setConnState('offline'), 6000);
+    });
+
+    socket.on('reconnect', ()=>{
+      clearTimeout(offlineTimer);
+      setConnState('live');
+      socket.emit('join', { roomId, clientId, name: getName() });
+    });
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>
